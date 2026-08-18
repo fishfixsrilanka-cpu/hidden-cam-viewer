@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Remote Viewer</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Overrides for better video fitting without zoom out */
+        .video-container {
+            height: 75vh; /* Prevents overflow */
+        }
+        
+        #remoteVideo {
+            object-fit: contain; /* Shrinks the video to fit entirely */
+        }
+
+        .view-switch {
+            background-color: #2196F3 !important;
+            font-weight: bold;
+        }
+
+        .view-switch:hover {
+            background-color: #0b7dda !important;
+        }
+    </style>
+    <!-- Include PeerJS -->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <!-- Include MQTT for Auto-Discovery -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Live Remote Viewer</h1>
+        <div class="status-container">
+            Status: <span id="statusText">Waiting for connection...</span>
+        </div>
+        
+        <div class="video-container">
+            <video id="remoteVideo" autoplay playsinline controls></video>
+        </div>
+
+        <div class="device-selection" style="margin-bottom: 15px;">
+            <label for="deviceIdInput" style="font-weight: bold;">Select Phone:</label>
+            <select id="deviceIdInput" style="padding: 5px; font-size: 16px; width: 250px;">
+                <option value="">Searching...</option>
+            </select>
+        </div>
+
+        <div class="controls">
+            <button id="connectBtn">Connect</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+        </div>
+        
+        <div class="controls extra-controls" style="margin-top: 10px;">
+            <button id="switchViewBtn" class="view-switch" disabled>Switch to Screen</button>
+            <button id="switchCamBtn" disabled>Switch Cam (F/B)</button>
+            <button id="snapshotBtn" disabled>Snapshot</button>
+            <button id="recordBtn" disabled>Start Record</button>
+            <button id="muteAudioBtn" disabled>Mute Audio</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
