@@ -219,13 +219,21 @@ function sendWakeUpCommand(baseId) {
 // data channel is not open, e.g. after the WAKE_UP reverse-call flow), and
 // fall back to the data channel when available.
 function sendControlCommand(cmd, extra) {
-  const baseId = resolveBaseId(deviceIdInput.value);
+  let baseId = "";
+  if (activeTargetId) {
+    baseId = resolveBaseId(activeTargetId);
+  } else if (deviceIdInput && deviceIdInput.value) {
+    baseId = resolveBaseId(deviceIdInput.value);
+  } else if (currentPeerId) {
+    baseId = resolveBaseId(currentPeerId);
+  }
+  
   let sent = false;
   if (dataConnection && dataConnection.open) {
     dataConnection.send(Object.assign({ command: cmd }, extra || {}));
     console.log("Control cmd via data channel ->", cmd);
     sent = true;
-  } else if (mqttClient && mqttClient.connected) {
+  } else if (mqttClient && mqttClient.connected && baseId) {
     const topic = COMMAND_TOPIC_BASE + baseId;
     const payload = JSON.stringify(
       Object.assign({ cmd: cmd, ts: Date.now() }, extra || {}),
@@ -238,10 +246,12 @@ function sendControlCommand(cmd, extra) {
 }
 
 let pingTimer = null;
+let activeTargetId = "";
 
 function connectToCamera(targetId) {
   streamReceived = false;
   connectionAttemptsActive = true;
+  activeTargetId = targetId;
 
   // Set to SCREEN mode upon new connection
   currentMode = "SCREEN";
@@ -261,9 +271,7 @@ function connectToCamera(targetId) {
 
   if (pingTimer) clearInterval(pingTimer);
   pingTimer = setInterval(() => {
-    if (!connectionAttemptsActive) {
-      sendControlCommand("PING");
-    }
+    sendControlCommand("PING");
   }, 5000);
 
   const baseId = resolveBaseId(targetId);
