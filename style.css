@@ -95,3 +95,19 @@ button:disabled {
 .rename-btn:hover {
     background-color: #45a049 !important;
 }
+
+#networkStats {
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #00FF00;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 13px;
+    z-index: 10;
+    display: none; /* Only shown when stream is active */
+}
+
+#pipBtn { background-color: #795548; color: white; }
