@@ -237,6 +237,8 @@ function sendControlCommand(cmd, extra) {
   return sent;
 }
 
+let pingTimer = null;
+
 function connectToCamera(targetId) {
   streamReceived = false;
   connectionAttemptsActive = true;
@@ -256,6 +258,13 @@ function connectToCamera(targetId) {
   connectBtn.disabled = true;
   disconnectBtn.disabled = false;
   switchViewBtn.disabled = true;
+
+  if (pingTimer) clearInterval(pingTimer);
+  pingTimer = setInterval(() => {
+    if (!connectionAttemptsActive) {
+      sendControlCommand("PING");
+    }
+  }, 5000);
 
   const baseId = resolveBaseId(targetId);
 
@@ -360,6 +369,10 @@ function connectToCameraWithRetry(targetId, attempt) {
 
 disconnectBtn.addEventListener("click", () => {
   connectionAttemptsActive = false;
+  if (pingTimer) {
+    clearInterval(pingTimer);
+    pingTimer = null;
+  }
   // Stop screen watch if active
   if (isWatchingScreen) {
     stopScreenWatch();
