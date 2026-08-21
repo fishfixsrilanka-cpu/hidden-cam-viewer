@@ -314,6 +314,16 @@ function connectToCameraWithRetry(targetId, attempt) {
   canvas.width = 1;
   canvas.height = 1;
   const dummyStream = canvas.captureStream();
+  
+  // Add a dummy audio track so WebRTC negotiates an audio channel
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const dest = audioCtx.createMediaStreamDestination();
+    const dummyAudioTrack = dest.stream.getAudioTracks()[0];
+    dummyStream.addTrack(dummyAudioTrack);
+  } catch (e) {
+    console.warn("Could not create dummy audio track:", e);
+  }
 
   // Call the phone
   const mediaCall = peer.call(sessionId, dummyStream);
@@ -799,17 +809,26 @@ mqttClient.on("message", (topic, message) => {
     try {
       const loc = JSON.parse(message.toString());
       if (leafletMap && loc.lat !== undefined && loc.lng !== undefined) {
+        let timeText = "";
+        if (loc.ts) {
+          const diffSec = Math.floor((Date.now() - loc.ts) / 1000);
+          if (diffSec < 60) timeText = ` (Just now)`;
+          else if (diffSec < 3600) timeText = ` (${Math.floor(diffSec/60)}m ago)`;
+          else timeText = ` (${Math.floor(diffSec/3600)}h ago)`;
+        }
+
         // Initialize or move marker
         if (!leafletMarker) {
           leafletMarker = L.marker([loc.lat, loc.lng]).addTo(leafletMap);
           leafletMap.setView([loc.lat, loc.lng], 16);
         } else {
           leafletMarker.setLatLng([loc.lat, loc.lng]);
+          // Only pan if we haven't manually moved the map much, or just force pan
           leafletMap.panTo([loc.lat, loc.lng]);
         }
         updateStatus(
-          `Tracking: ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)} (Speed: ${(loc.speed || 0).toFixed(1)}m/s)`,
-          "#FF9800",
+          `Tracking: ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)} (Speed: ${(loc.speed || 0).toFixed(1)}m/s)${timeText}`,
+          timeText.includes("Just now") ? "#4CAF50" : "#FF9800",
         );
       }
     } catch (e) {
