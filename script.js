@@ -489,16 +489,20 @@ signalBtn.addEventListener('click', () => {
 
 // --- Auto-Discovery using Public MQTT ---
 const DISCOVERY_BASE_TOPIC = "ar115_hidden_cam_discovery_99182/devices/";
-const mqttClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+const DISCOVERY_WAKE_TOPIC = "ar115_hidden_cam_discovery_99182/wake";
+const ALIAS_TOPIC = "ar115_hidden_cam_discovery_99182/aliases";
 
-let onlineDevices = new Map();   // baseId -> { id: latest session peer ID, ts: heartbeat timestamp }
-let sessionToBase = new Map();   // sessionId -> baseId
+let onlineDevices = new Map(); // baseId -> { id: sessionId, ts: timestamp }
+let sessionToBase = new Map(); // sessionId -> baseId
+let globalAliases = {}; // baseId -> alias (Synced via MQTT)
+
+const mqttClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
 
 mqttClient.on('connect', () => {
     console.log("Connected to Discovery Server");
     mqttClient.subscribe(DISCOVERY_BASE_TOPIC + "+");
+    mqttClient.subscribe(ALIAS_TOPIC); // Subscribe to aliases topic
 });
-
 mqttClient.on('message', (topic, message) => {
     // Handle screen frames from the phone
     if (isWatchingScreen && screenMqttTopic && topic === screenMqttTopic) {
@@ -554,6 +558,18 @@ mqttClient.on('message', (topic, message) => {
             }
         }
         updateLiveDeviceDropdown();
+    } else if (topic === ALIAS_TOPIC) {
+        // Handle incoming alias updates
+        try {
+            const payload = message.toString();
+            if (payload) {
+                globalAliases = JSON.parse(payload);
+                console.log("Received updated aliases from MQTT:", globalAliases);
+                updateLiveDeviceDropdown(); // Refresh dropdown with new names
+            }
+        } catch (e) {
+            console.error("Error parsing aliases from MQTT:", e);
+        }
     }
 });
 
@@ -597,6 +613,10 @@ function updateLiveDeviceDropdown() {
     });
     let savedSig = JSON.parse(localStorage.getItem('savedDevices') || '[]');
     sigParts = sigParts.concat(savedSig);
+    
+    // Also include aliases in the signature, so renaming triggers a UI update
+    sigParts.push(JSON.stringify(globalAliases));
+    
     const signature = sigParts.join("|");
     if (signature === lastDropdownSignature) return;
     lastDropdownSignature = signature;
@@ -613,13 +633,14 @@ function updateLiveDeviceDropdown() {
     let addedBaseIds = new Set();
     let optionValues = new Set();
     
-    // Add online devices first: value = live session ID from MQTT payload
+    // Add online devices first
     onlineDevices.forEach((info, baseId) => {
         if (!addedBaseIds.has(baseId)) {
             const option = document.createElement('option');
             option.value = info.id;
             option.dataset.baseId = baseId;
-            option.text = "🟢 " + baseId + " (Online)";
+            const displayName = globalAliases[baseId] || baseId;
+            option.text = "🟢 " + displayName + " (Online)";
             deviceIdInput.appendChild(option);
             addedBaseIds.add(baseId);
             optionValues.add(info.id);
@@ -633,7 +654,8 @@ function updateLiveDeviceDropdown() {
             const option = document.createElement('option');
             option.value = id; // offline: only the base ID is known
             option.dataset.baseId = id;
-            option.text = "⚪ " + id + " (Offline)";
+            const displayName = globalAliases[id] || id;
+            option.text = "⚪ " + displayName + " (Offline)";
             deviceIdInput.appendChild(option);
             addedBaseIds.add(id);
             optionValues.add(id);
@@ -672,6 +694,41 @@ muteAudioBtn.addEventListener('click', () => {
 // 5. Volume Slider
 volumeSlider.addEventListener('input', (e) => {
     remoteVideo.volume = e.target.value;
+});
+
+// Rename functionality
+document.getElementById('renameDeviceBtn').addEventListener('click', () => {
+    const currentValue = deviceIdInput.value;
+    if (!currentValue) {
+        alert("Please select a device to rename first.");
+        return;
+    }
+
+    // Resolve base ID from the selected value
+    const sel = deviceIdInput.selectedOptions && deviceIdInput.selectedOptions[0];
+    let targetBaseId = (sel && sel.dataset.baseId) ? sel.dataset.baseId : (sessionToBase.get(currentValue) || currentValue);
+    
+    let currentName = globalAliases[targetBaseId] || targetBaseId;
+    let newName = prompt("Enter a new name for this device:", currentName);
+    
+    if (newName !== null) {
+        newName = newName.trim();
+        if (newName === "") {
+            // If empty, remove the alias
+            delete globalAliases[targetBaseId];
+        } else {
+            globalAliases[targetBaseId] = newName;
+        }
+        
+        // Publish updated aliases to MQTT with retain: true
+        if (mqttClient && mqttClient.connected) {
+            mqttClient.publish(ALIAS_TOPIC, JSON.stringify(globalAliases), { retain: true });
+            console.log("Published updated aliases to MQTT:", globalAliases);
+            updateLiveDeviceDropdown(); // Update local UI immediately
+        } else {
+            alert("Error: Not connected to MQTT broker. Cannot save rename.");
+        }
+    }
 });
 
 // Initialize peer when page loads
