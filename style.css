@@ -91,3 +91,7 @@ button:disabled {
     color: #888 !important;
     cursor: not-allowed;
 }
+
+.rename-btn:hover {
+    background-color: #45a049 !important;
+}
